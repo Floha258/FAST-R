@@ -84,13 +84,13 @@ def storeSignatures(input_file, sigfile, hashes, bbox=False, k=5):
 # load stored signatures
 def loadSignatures(input_file):
     sig = {}
-    start = time.clock()
+    start = time.time()
     with open(input_file, "r") as fin:
         tcID = 1
         for tc in fin:
             sig[tcID] = [i.strip() for i in tc[:-1].split()]
             tcID += 1
-    return sig, time.clock() - start
+    return sig, time.time() - start
 
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -105,27 +105,27 @@ def fast_pw(input_file, r, b, bbox=False, k=5, memory=False, B=0):
     if memory:
         test_suite = loadTestSuite(input_file, bbox=bbox, k=k)
         # generate minhashes signatures
-        mh_t = time.clock()
+        mh_t = time.time()
         tcs_minhashes = {tc[0]: lsh.tcMinhashing(tc, hashes)
                          for tc in test_suite.items()}
-        mh_time = time.clock() - mh_t
-        ptime_start = time.clock()
+        mh_time = time.time() - mh_t
+        ptime_start = time.time()
 
     else:
         # loading input file and generating minhashes signatures
         sigfile = input_file.replace(".txt", ".sig")
         sigtimefile = "{}_sigtime.txt".format(input_file.split(".")[0])
         if not os.path.exists(sigfile):
-            mh_t = time.clock()
+            mh_t = time.time()
             storeSignatures(input_file, sigfile, hashes, bbox, k)
-            mh_time = time.clock() - mh_t
+            mh_time = time.time() - mh_t
             with open(sigtimefile, "w") as fout:
                 fout.write(repr(mh_time))
         else:
             with open(sigtimefile, "r") as fin:
                 mh_time = eval(fin.read().replace("\n", ""))
 
-        ptime_start = time.clock()
+        ptime_start = time.time()
         tcs_minhashes, load_time = loadSignatures(sigfile)
 
     tcs = set(tcs_minhashes.keys())
@@ -199,7 +199,7 @@ def fast_pw(input_file, r, b, bbox=False, k=5, memory=False, B=0):
         tcs -= set([selected_tc])
         del tcs_minhashes[selected_tc]
 
-    ptime = time.clock() - ptime_start
+    ptime = time.time() - ptime_start
 
     max_ts_size = sum((1 for line in open(input_file)))
     return mh_time, ptime, prioritized_tcs[1:max_ts_size]
@@ -216,27 +216,27 @@ def fast_(input_file, selsize, r, b, bbox=False, k=5, memory=False, B=0):
     if memory:
         test_suite = loadTestSuite(input_file, bbox=bbox, k=k)
         # generate minhashes signatures
-        mh_t = time.clock()
+        mh_t = time.time()
         tcs_minhashes = {tc[0]: lsh.tcMinhashing(tc, hashes)
                          for tc in test_suite.items()}
-        mh_time = time.clock() - mh_t
-        ptime_start = time.clock()
+        mh_time = time.time() - mh_t
+        ptime_start = time.time()
 
     else:
         # loading input file and generating minhashes signatures
         sigfile = input_file.replace(".txt", ".sig")
         sigtimefile = "{}_sigtime.txt".format(input_file.split(".")[0])
         if not os.path.exists(sigfile):
-            mh_t = time.clock()
+            mh_t = time.time()
             storeSignatures(input_file, sigfile, hashes, bbox, k)
-            mh_time = time.clock() - mh_t
+            mh_time = time.time() - mh_t
             with open(sigtimefile, "w") as fout:
                 fout.write(repr(mh_time))
         else:
             with open(sigtimefile, "r") as fin:
                 mh_time = eval(fin.read().replace("\n", ""))
 
-        ptime_start = time.clock()
+        ptime_start = time.time()
         tcs_minhashes, load_time = loadSignatures(sigfile)
 
     tcs = set(tcs_minhashes.keys())
@@ -310,7 +310,7 @@ def fast_(input_file, selsize, r, b, bbox=False, k=5, memory=False, B=0):
         if len(prioritized_tcs) >= B+1:
             break
 
-    ptime = time.clock() - ptime_start
+    ptime = time.time() - ptime_start
 
     max_ts_size = sum((1 for line in open(input_file)))
     return mh_time, ptime, prioritized_tcs[1:max_ts_size]
@@ -407,16 +407,16 @@ def reductionPlusPlus(TS, B):
 # Returns: preparation time, reduction time, reduced test suite
 def fastPlusPlus(inputFile, dim=0, B=0, memory=True):
     if memory:
-        t0 = time.clock()
+        t0 = time.time()
         TS = preparation(inputFile, dim=dim)
-        t1 = time.clock()
+        t1 = time.time()
         pTime = t1-t0
     else:
         rpFile = inputFile.replace(".txt", ".rp")
         if not os.path.exists(rpFile):
-            t0 = time.clock()
+            t0 = time.time()
             TS = preparation(inputFile, dim=dim)
-            t1 = time.clock()
+            t1 = time.time()
             pTime = t1-t0
             pickle.dump((pTime, TS), open(rpFile, "wb"))
         else:
@@ -425,9 +425,9 @@ def fastPlusPlus(inputFile, dim=0, B=0, memory=True):
     if B <= 0:
         B = len(TS)
 
-    t2 = time.clock()
+    t2 = time.time()
     reducedTS = reductionPlusPlus(TS, B)
-    t3 = time.clock()
+    t3 = time.time()
     sTime = t3-t2
 
     return pTime, sTime, reducedTS
@@ -478,16 +478,16 @@ def reductionCS(TS, B):
 # Returns: preparation time, reduction time, reduced test suite
 def fastCS(inputFile, dim=0, B=0, memory=True):
     if memory:
-        t0 = time.clock()
+        t0 = time.time()
         TS = preparation(inputFile, dim=dim)
-        t1 = time.clock()
+        t1 = time.time()
         pTime = t1-t0
     else:
         rpFile = inputFile.replace(".txt", ".rp")
         if not os.path.exists(rpFile):
-            t0 = time.clock()
+            t0 = time.time()
             TS = preparation(inputFile, dim=dim)
-            t1 = time.clock()
+            t1 = time.time()
             pTime = t1-t0
             pickle.dump((pTime, TS), open(rpFile, "wb"))
         else:
@@ -496,9 +496,9 @@ def fastCS(inputFile, dim=0, B=0, memory=True):
     if B <= 0:
         B = len(TS)
 
-    t2 = time.clock()
+    t2 = time.time()
     reducedTS = reductionCS(TS, B)
-    t3 = time.clock()
+    t3 = time.time()
     sTime = t3-t2
 
     return pTime, sTime, reducedTS

@@ -15,6 +15,7 @@ along with this source.  If not, see <http://www.gnu.org/licenses/>.
 
 from collections import defaultdict
 from collections import OrderedDict
+from sklearn_extra.cluster import KMedoids
 import math
 import os
 import pickle
@@ -31,10 +32,10 @@ from sklearn.random_projection import SparseRandomProjection
 
 import lsh
 
-
 """
 This file implements FAST-R test suite reduction algorithms.
 """
+
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
@@ -58,6 +59,7 @@ def loadTestSuite(input_file, bbox=False, k=5):
         newTS = lsh.kShingles(TS, k)
     return newTS
 
+
 # store signatures on disk for future re-use
 def storeSignatures(input_file, sigfile, hashes, bbox=False, k=5):
     with open(sigfile, "w") as sigfile:
@@ -80,6 +82,7 @@ def storeSignatures(input_file, sigfile, hashes, bbox=False, k=5):
                     sigfile.write(" ")
                 sigfile.write("\n")
                 tcID += 1
+
 
 # load stored signatures
 def loadSignatures(input_file):
@@ -135,7 +138,7 @@ def fast_pw(input_file, r, b, bbox=False, k=5, memory=False, B=0):
         B = len(tcs)
 
     BASE = 0.5
-    SIZE = int(len(tcs)*BASE) + 1
+    SIZE = int(len(tcs) * BASE) + 1
 
     bucket = lsh.LSHBucket(tcs_minhashes.items(), b, r, n)
 
@@ -157,12 +160,12 @@ def fast_pw(input_file, r, b, bbox=False, k=5, memory=False, B=0):
         iteration += 1
         if iteration % 100 == 0:
             sys.stdout.write("  Progress: {}%\r".format(
-                round(100*iteration/total, 2)))
+                round(100 * iteration / total, 2)))
             sys.stdout.flush()
 
         if len(tcs_minhashes) < SIZE:
             bucket = lsh.LSHBucket(tcs_minhashes.items(), b, r, n)
-            SIZE = int(SIZE*BASE) + 1
+            SIZE = int(SIZE * BASE) + 1
 
         sim_cand = lsh.LSHCandidates(bucket, (0, selected_tcs_minhash),
                                      b, r, n)
@@ -193,7 +196,7 @@ def fast_pw(input_file, r, b, bbox=False, k=5, memory=False, B=0):
         prioritized_tcs.append(selected_tc)
 
         # select budget B
-        if len(prioritized_tcs) >= B+1:
+        if len(prioritized_tcs) >= B + 1:
             break
 
         tcs -= set([selected_tc])
@@ -246,7 +249,7 @@ def fast_(input_file, selsize, r, b, bbox=False, k=5, memory=False, B=0):
         B = len(tcs)
 
     BASE = 0.5
-    SIZE = int(len(tcs)*BASE) + 1
+    SIZE = int(len(tcs) * BASE) + 1
 
     bucket = lsh.LSHBucket(tcs_minhashes.items(), b, r, n)
 
@@ -268,12 +271,12 @@ def fast_(input_file, selsize, r, b, bbox=False, k=5, memory=False, B=0):
         iteration += 1
         if iteration % 100 == 0:
             sys.stdout.write("  Progress: {}%\r".format(
-                round(100*iteration/total, 2)))
+                round(100 * iteration / total, 2)))
             sys.stdout.flush()
 
         if len(tcs_minhashes) < SIZE:
             bucket = lsh.LSHBucket(tcs_minhashes.items(), b, r, n)
-            SIZE = int(SIZE*BASE) + 1
+            SIZE = int(SIZE * BASE) + 1
 
         sim_cand = lsh.LSHCandidates(bucket, (0, selected_tcs_minhash),
                                      b, r, n)
@@ -300,14 +303,14 @@ def fast_(input_file, selsize, r, b, bbox=False, k=5, memory=False, B=0):
             prioritized_tcs.append(selected_tc)
 
             # select budget B
-            if len(prioritized_tcs) >= B+1:
+            if len(prioritized_tcs) >= B + 1:
                 break
 
             tcs -= set([selected_tc])
             del tcs_minhashes[selected_tc]
 
         # select budget B
-        if len(prioritized_tcs) >= B+1:
+        if len(prioritized_tcs) >= B + 1:
             break
 
     ptime = time.time() - ptime_start
@@ -335,6 +338,7 @@ def euclideanDist(v, w):
 
     return math.sqrt(d)
 
+
 # Preparation phase for FAST++ and FAST-CS
 def preparation(inputFile, dim=0):
     vectorizer = HashingVectorizer()  # compute "TF"
@@ -359,6 +363,41 @@ def preparation(inputFile, dim=0):
     return TS
 
 
+# Alternate Preparation phase for own algos
+def preparationAlt(inputFile, dim=0):
+    vectorizer = HashingVectorizer()  # compute "TF"
+    testCases = [line.rstrip("\n") for line in open(inputFile)]
+    testSuite = vectorizer.fit_transform(testCases)
+
+    # dimensionality reduction
+    if dim <= 0:
+        e = 0.5  # epsilon in jl lemma
+        dim = johnson_lindenstrauss_min_dim(len(testCases), eps=e)
+    srp = SparseRandomProjection(n_components=dim)
+    projectedTestSuite = srp.fit_transform(testSuite)
+
+    # map sparse matrix to dict
+    TS = []
+    for i in range(len(testCases)):
+        tc = {}
+        for j in projectedTestSuite[i].nonzero()[1]:
+            tc[j] = projectedTestSuite[i, j]
+        TS.append(tc)
+
+    return projectedTestSuite
+
+
+def sparseToDict(medoids, B):
+    TS = []
+    for i in range(B):
+        tc = {}
+        for j in medoids[i].nonzero()[1]:
+            tc[j] = medoids[i, j]
+        TS.append(tc)
+
+    return TS
+
+
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 # FAST++ Reduction phase
@@ -366,9 +405,9 @@ def reductionPlusPlus(TS, B):
     reducedTS = []
 
     # distance to closest center
-    D = defaultdict(lambda:float('Inf'))
+    D = defaultdict(lambda: float('Inf'))
     # select first center randomly
-    selectedTC = random.randint(0, len(TS)-1)
+    selectedTC = random.randint(0, len(TS) - 1)
     reducedTS.append(selectedTC + 1)
     D[selectedTC] = 0
 
@@ -386,11 +425,10 @@ def reductionPlusPlus(TS, B):
         # safe exit point (if all distances are 0)
         # (but not all test cases have been selected)
         if norm == 0:
-            extraTCS = list(set(range(1, len(TS)+1)) - set(reducedTS))
+            extraTCS = list(set(range(1, len(TS) + 1)) - set(reducedTS))
             random.shuffle(extraTCS)
-            reducedTS.extend(extraTCS[:B-len(reducedTS)])
+            reducedTS.extend(extraTCS[:B - len(reducedTS)])
             break
-
 
         c = 0
         coinToss = random.random() * norm
@@ -403,6 +441,168 @@ def reductionPlusPlus(TS, B):
 
     return reducedTS
 
+
+"""
+def initMedoids(TS, B):
+    np.random.seed(1)
+    samples = np.random.choice(TS, size=B, replace=False)
+    print('Samples = {}'.format(samples))
+    return samples
+
+
+def computeDistance(TS, medoids, p):
+    m = len(TS)
+    medoids_shape = medoids.shape
+    print('m = ' + str(m) + 'shape = ' + str(medoids_shape))
+    if (len(medoids_shape)) == 1:
+        medoids = medoids.reshape((1, len(medoids)))
+    k = len(medoids)
+    S = np.empty((m, k))
+    for i in range(m):
+        print(str(i))
+        print(str(TS[i:]))
+        d_i = np.linalg.norm(TS[i:] - medoids, ord=p, axis=1)
+        S[i, :] = d_i ** p
+    return S
+
+def assignLabels(S):
+    return np.argmin(S, axis=1)
+
+def updateMedoids(TS, medoids, p):
+    S = computeDistance(TS, medoids, p)
+    labels = assignLabels(S)
+
+    out_medoids = medoids
+
+    for i in set(labels):
+        avg_dissamilarity = np.sum(computeDistance(TS, medoids[i], p))
+        cluster_points = TS[medoids == i]
+
+        for datap in cluster_points:
+            new_medoid = datap
+            new_dissamilarity = np.sum(computeDistance(TS, datap, 2))
+
+            if new_dissamilarity < avg_dissamilarity:
+                avg_dissamilarity = new_dissamilarity
+                out_medoids[i] = datap
+
+    return out_medoids
+
+def k_medoids(TS, B, starting_medoids=None, max_steps=np.inf):
+    if starting_medoids is None:
+        medoids = initMedoids(TS, B)
+    else:
+        medoids = starting_medoids
+    converged = False
+    labels = np.zeros(len(TS))
+    i = 1
+    while (not converged) and (i <= max_steps):
+        old_medoids = medoids.copy
+        S = computeDistance(TS, medoids, 2)
+        labels = assignLabels(S)
+        medoids = updateMedoids(TS, medoids, 2)
+        converged = hasConverged(old_medoids, medoids)
+        i += 1
+    return medoids
+
+"""
+
+
+def kMedoids(D, k, tmax=100):
+    # determine dimensions of distance matrix D
+    """
+    tsArray = np.array()
+
+    for tc in TS:
+        tcArray = np.array()
+        for key in tc.keys():
+            vector = np.array(key, tc[key])
+            tcArray.__add__(vector)
+        tsArray.__add__(tcArray)
+        """
+
+
+    m, n = D.shape
+
+    if k > n:
+        raise Exception('too many medoids')
+
+    # find a set of valid initial cluster medoid indices since we
+    # can't seed different clusters with two points at the same location
+    valid_medoid_inds = set(range(n))
+    invalid_medoid_inds = set([])
+    rs, cs = np.where(D == 0)
+    # the rows, cols must be shuffled because we will keep the first duplicate below
+    index_shuf = list(range(len(rs)))
+    np.random.shuffle(index_shuf)
+    rs = rs[index_shuf]
+    cs = cs[index_shuf]
+    for r, c in zip(rs, cs):
+        # if there are two points with a distance of 0...
+        # keep the first one for cluster init
+        if r < c and r not in invalid_medoid_inds:
+            invalid_medoid_inds.add(c)
+    valid_medoid_inds = list(valid_medoid_inds - invalid_medoid_inds)
+
+    if k > len(valid_medoid_inds):
+        raise Exception('too many medoids (after removing {} duplicate points)'.format(
+            len(invalid_medoid_inds)))
+
+    # randomly initialize an array of k medoid indices
+    M = np.array(valid_medoid_inds)
+    np.random.shuffle(M)
+    M = np.sort(M[:k])
+
+    # create a copy of the array of medoid indices
+    Mnew = np.copy(M)
+
+    # initialize a dictionary to represent clusters
+    C = {}
+    for t in range(tmax):
+        # determine clusters, i. e. arrays of data indices
+        J = np.argmin(D[:, M], axis=1)
+        for kappa in range(k):
+            C[kappa] = np.where(J == kappa)[0]
+        # update cluster medoids
+        for kappa in range(k):
+            J = np.mean(D[np.ix_(C[kappa], C[kappa])], axis=1)
+            # Fix for the low-idx bias by J.Nagele (2019):
+            shuffled_idx = np.arange(len(J))
+            np.random.shuffle(shuffled_idx)
+            j = shuffled_idx[np.argmin(J[shuffled_idx])]
+            Mnew[kappa] = C[kappa][j]
+        np.sort(Mnew)
+        # check for convergence
+        if np.array_equal(M, Mnew):
+            break
+        M = np.copy(Mnew)
+    else:
+        # final update of cluster memberships
+        J = np.argmin(D[:, M], axis=1)
+        for kappa in range(k):
+            C[kappa] = np.where(J == kappa)[0]
+
+    # return results
+    return M, C
+
+
+# FAST-medoids reduction
+def reductionMedoids(TS, B):
+    D = np.array(TS)
+    kmedoids = KMedoids(n_clusters=B).fit(TS)
+    # return sparseToDict(kmedoids.cluster_centers_, B)
+
+    reducedTS = []
+    for medoid in kmedoids.cluster_centers_:
+        i = 0
+        for tc in TS:
+            if not medoid.tolil != tc.tolil:
+                reducedTS.append(i)
+        i += 1
+
+    return reducedTS
+
+
 # FAST++ test suite reduction algorithm
 # Returns: preparation time, reduction time, reduced test suite
 def fastPlusPlus(inputFile, dim=0, B=0, memory=True):
@@ -410,14 +610,14 @@ def fastPlusPlus(inputFile, dim=0, B=0, memory=True):
         t0 = time.time()
         TS = preparation(inputFile, dim=dim)
         t1 = time.time()
-        pTime = t1-t0
+        pTime = t1 - t0
     else:
         rpFile = inputFile.replace(".txt", ".rp")
         if not os.path.exists(rpFile):
             t0 = time.time()
             TS = preparation(inputFile, dim=dim)
             t1 = time.time()
-            pTime = t1-t0
+            pTime = t1 - t0
             pickle.dump((pTime, TS), open(rpFile, "wb"))
         else:
             pTime, TS = pickle.load(open(rpFile, "rb"))
@@ -428,7 +628,37 @@ def fastPlusPlus(inputFile, dim=0, B=0, memory=True):
     t2 = time.time()
     reducedTS = reductionPlusPlus(TS, B)
     t3 = time.time()
-    sTime = t3-t2
+    sTime = t3 - t2
+
+    return pTime, sTime, reducedTS
+
+
+# FAST-Medoids test suite reduction algorithm
+# Returns: preparation time, reduction time, reduced test suite
+def fastMedoids(inputFile, dim=0, B=0, memory=True):
+    if memory:
+        t0 = time.time()
+        TS = preparationAlt(inputFile, dim=dim)
+        t1 = time.time()
+        pTime = t1 - t0
+    else:
+        rpFile = inputFile.replace(".txt", ".rp")
+        if not os.path.exists(rpFile):
+            t0 = time.time()
+            TS = preparation(inputFile, dim=dim)
+            t1 = time.time()
+            pTime = t1 - t0
+            pickle.dump((pTime, TS), open(rpFile, "wb"))
+        else:
+            pTime, TS = pickle.load(open(rpFile, "rb"))
+
+    if B <= 0:
+        B = len(TS)
+
+    t2 = time.time()
+    reducedTS = reductionMedoids(TS, B)
+    t3 = time.time()
+    sTime = t3 - t2
 
     return pTime, sTime, reducedTS
 
@@ -454,25 +684,26 @@ def reductionCS(TS, B):
     norm = 0
     for tc in range(len(TS)):
         dist = euclideanDist(TS[tc], centerOfMass)
-        D[tc] = dist*dist
+        D[tc] = dist * dist
         norm += D[tc]
 
     # compute probabilities of being sampled
     P = []
     if norm != 0:
-        p = 1.0 / (2*len(TS))
+        p = 1.0 / (2 * len(TS))
         for tc in range(len(TS)):
-            P.append(p + D[tc] / (2*norm))
+            P.append(p + D[tc] / (2 * norm))
     else:
         P = [1.0 / len(TS)] * len(TS)
 
     # numeric error: when sum of P != 1
-    P[random.randint(0, len(TS)-1)] += 1.0 - sum(P)
+    P[random.randint(0, len(TS) - 1)] += 1.0 - sum(P)
 
     # proportional sampling
-    reducedTS = list(np.random.choice(list(range(1, len(TS)+1)), size=B, p=P, replace=False))
+    reducedTS = list(np.random.choice(list(range(1, len(TS) + 1)), size=B, p=P, replace=False))
 
     return reducedTS
+
 
 # FAST-CS test suite reduction algorithm
 # Returns: preparation time, reduction time, reduced test suite
@@ -481,14 +712,14 @@ def fastCS(inputFile, dim=0, B=0, memory=True):
         t0 = time.time()
         TS = preparation(inputFile, dim=dim)
         t1 = time.time()
-        pTime = t1-t0
+        pTime = t1 - t0
     else:
         rpFile = inputFile.replace(".txt", ".rp")
         if not os.path.exists(rpFile):
             t0 = time.time()
             TS = preparation(inputFile, dim=dim)
             t1 = time.time()
-            pTime = t1-t0
+            pTime = t1 - t0
             pickle.dump((pTime, TS), open(rpFile, "wb"))
         else:
             pTime, TS = pickle.load(open(rpFile, "rb"))
@@ -499,6 +730,6 @@ def fastCS(inputFile, dim=0, B=0, memory=True):
     t2 = time.time()
     reducedTS = reductionCS(TS, B)
     t3 = time.time()
-    sTime = t3-t2
+    sTime = t3 - t2
 
     return pTime, sTime, reducedTS

@@ -85,6 +85,7 @@ if __name__ == "__main__":
 
     for reduction in range(1, repetitions+1):
         B = int(numOfTCS * reduction / 100)
+        #print('Budget {}'.format(B))
 
         for run in range(repeats):
             pTime, rTime, sel = fastr.fastPlusPlus(inputFile, dim=dim, B=B)
@@ -94,6 +95,15 @@ if __name__ == "__main__":
             tOut = "{}/{}-{}-{}.pickle".format(tPath, "FAST++", reduction, run+1)
             pickle.dump((pTime, rTime, fdl), open(tOut, "wb"))
             print("FAST++", reduction, pTime, rTime, fdl)
+
+        for run in range(repeats):
+            pTime, rTime, sel = fastr.fastMedoids(inputFile, dim=dim, B=B)
+            fdl = metric.fdl(sel, faultMatrix, javaFlag)
+            sOut = "{}/{}-{}-{}.pickle".format(sPath, "FAST-Medoids", reduction, run+1)
+            pickle.dump(sel, open(sOut, "wb"))
+            tOut = "{}/{}-{}-{}.pickle".format(tPath, "FAST-Medoids", reduction, run+1)
+            pickle.dump((pTime, rTime, fdl), open(tOut, "wb"))
+            print("FAST-Medoids", reduction, pTime, rTime, fdl)
 
         for run in range(repeats):
             pTime, rTime, sel = fastr.fastCS(inputFile, dim=dim, B=B)

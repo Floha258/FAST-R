@@ -16,6 +16,7 @@ along with this source.  If not, see <http://www.gnu.org/licenses/>.
 from collections import defaultdict
 from collections import OrderedDict
 from sklearn_extra.cluster import KMedoids
+from pyclustering.cluster.clarans import clarans
 import math
 import os
 import pickle
@@ -521,7 +522,6 @@ def kMedoids(D, k, tmax=100):
         tsArray.__add__(tcArray)
         """
 
-
     m, n = D.shape
 
     if k > n:
@@ -589,6 +589,7 @@ def kMedoids(D, k, tmax=100):
 # FAST-medoids reduction
 def reductionMedoids(TS, B):
     D = np.array(TS)
+    print(str)
     kmedoids = KMedoids(n_clusters=B).fit(TS)
     # return sparseToDict(kmedoids.cluster_centers_, B)
 
@@ -599,6 +600,35 @@ def reductionMedoids(TS, B):
             if not medoid.tolil != tc.tolil:
                 reducedTS.append(i)
         i += 1
+
+    return reducedTS
+
+
+# reduction for clustering with CLARANS
+def reductionCLARANS(TS, B):
+    # data = []
+    # for tc in TS:
+    #    tcarr = []
+    #    for entry in tc:
+    #        tcarr.append(entry)
+    #    data.append(tcarr)
+
+    data = TS.tolil().data.tolist()
+    # print("TS: {}".format(str(TS)))
+    # print("data: {}".format(str(data)))
+    print(str(type(data)))
+    print(str(type(data[0])))
+    clusters = clarans(data, B, 500, 400)
+    clusters.process()
+
+    reducedTS = []
+    print("Medoids: {}, OG TS: {}".format(str(clusters.get_medoids()), str(TS)))
+    for medoid in clusters.get_medoids():
+        i = 0
+        for tc in TS:
+            if not medoid != tc.tolil:
+                reducedTS.append(i)
+            i += 1
 
     return reducedTS
 
@@ -657,6 +687,36 @@ def fastMedoids(inputFile, dim=0, B=0, memory=True):
 
     t2 = time.time()
     reducedTS = reductionMedoids(TS, B)
+    t3 = time.time()
+    sTime = t3 - t2
+
+    return pTime, sTime, reducedTS
+
+
+# FAST-CLARANS test suite reduction algorithm
+# Returns: preparation time, reduction time, reduced test suite
+def fastCLARANS(inputFile, dim=0, B=0, memory=True):
+    if memory:
+        t0 = time.time()
+        TS = preparationAlt(inputFile, dim=dim)
+        t1 = time.time()
+        pTime = t1 - t0
+    else:
+        rpFile = inputFile.replace(".txt", ".rp")
+        if not os.path.exists(rpFile):
+            t0 = time.time()
+            TS = preparation(inputFile, dim=dim)
+            t1 = time.time()
+            pTime = t1 - t0
+            pickle.dump((pTime, TS), open(rpFile, "wb"))
+        else:
+            pTime, TS = pickle.load(open(rpFile, "rb"))
+
+    if B <= 0:
+        B = len(TS)
+
+    t2 = time.time()
+    reducedTS = reductionCLARANS(TS, B)
     t3 = time.time()
     sTime = t3 - t2
 

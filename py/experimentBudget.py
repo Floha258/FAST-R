@@ -27,7 +27,6 @@ This file runs all FAST-R algorithms (fastr_adequate.py) and the competitors (co
 in the Budget scenario and in all input test suite.
 """
 
-
 usage = """USAGE: python3 py/experimentBudget.py <coverageType> <program> <version> <repetitions>
 OPTIONS:
   <coverageType>: the target coverage criterion.
@@ -36,7 +35,6 @@ OPTIONS:
     options: flex v3, grep v3, gzip v1, make v1, sed v6, chart v0, closure v0, lang v0, math v0, time v0
   <repetitions>: number of times the test suite reduction should be computed.
     options: positive integer value, e.g. 50"""
-
 
 if __name__ == "__main__":
     if len(sys.argv) != 5:
@@ -47,7 +45,7 @@ if __name__ == "__main__":
     D4J = [("math", "v1"), ("closure", "v1"), ("time", "v1"), ("lang", "v1"), ("chart", "v1")]
     script, covType, prog, v, rep = sys.argv
     repetitions = int(rep)
-    repeats = 50
+    repeats = 10 #Testing Purpose only
 
     directory = "outputBudget-{}/{}_{}/".format(covType, prog, v)
     if not os.path.exists(directory):
@@ -61,11 +59,23 @@ if __name__ == "__main__":
     k, n, r, b = 5, 10, 1, 10
     dim = 10
 
+
     # FAST-f sample size
-    def all_(x): return x
-    def sqrt_(x): return int(math.sqrt(x)) + 1
-    def log_(x): return int(math.log(x, 2)) + 1
-    def one_(x): return 1
+    def all_(x):
+        return x
+
+
+    def sqrt_(x):
+        return int(math.sqrt(x)) + 1
+
+
+    def log_(x):
+        return int(math.log(x, 2)) + 1
+
+
+    def one_(x):
+        return 1
+
 
     # BLACKBOX
     javaFlag = True if ((prog, v) in D4J) else False
@@ -83,38 +93,51 @@ if __name__ == "__main__":
 
     numOfTCS = sum((1 for _ in open(inputFile)))
 
-    for reduction in range(1, repetitions+1):
+    for reduction in range(1, repetitions + 1):
         B = int(numOfTCS * reduction / 100)
-        #print('Budget {}'.format(B))
+        # print('Budget {}'.format(B))
+
+        for run in range(repeats):
+            pTime, rTime, sel = fastr.fastCLARANS(inputFile, dim=dim, B=B)
+            print(str(sel))
+            fdl = metric.fdl(sel, faultMatrix, javaFlag)
+            sOut = "{}/{}-{}-{}.pickle".format(sPath, "FAST-CLARANS", reduction, run + 1)
+            pickle.dump(sel, open(sOut, "wb"))
+            tOut = "{}/{}-{}-{}.pickle".format(tPath, "FAST-CLARANS", reduction, run + 1)
+            pickle.dump((pTime, rTime, fdl), open(tOut, "wb"))
+            print("FAST-CLARANS", reduction, pTime, rTime, fdl)
 
         for run in range(repeats):
             pTime, rTime, sel = fastr.fastPlusPlus(inputFile, dim=dim, B=B)
+            print(str(sel))
             fdl = metric.fdl(sel, faultMatrix, javaFlag)
-            sOut = "{}/{}-{}-{}.pickle".format(sPath, "FAST++", reduction, run+1)
+            sOut = "{}/{}-{}-{}.pickle".format(sPath, "FAST++", reduction, run + 1)
             pickle.dump(sel, open(sOut, "wb"))
-            tOut = "{}/{}-{}-{}.pickle".format(tPath, "FAST++", reduction, run+1)
+            tOut = "{}/{}-{}-{}.pickle".format(tPath, "FAST++", reduction, run + 1)
             pickle.dump((pTime, rTime, fdl), open(tOut, "wb"))
             print("FAST++", reduction, pTime, rTime, fdl)
 
         for run in range(repeats):
             pTime, rTime, sel = fastr.fastMedoids(inputFile, dim=dim, B=B)
+            print(str(sel))
             fdl = metric.fdl(sel, faultMatrix, javaFlag)
-            sOut = "{}/{}-{}-{}.pickle".format(sPath, "FAST-Medoids", reduction, run+1)
+            sOut = "{}/{}-{}-{}.pickle".format(sPath, "FAST-Medoids", reduction, run + 1)
             pickle.dump(sel, open(sOut, "wb"))
-            tOut = "{}/{}-{}-{}.pickle".format(tPath, "FAST-Medoids", reduction, run+1)
+            tOut = "{}/{}-{}-{}.pickle".format(tPath, "FAST-Medoids", reduction, run + 1)
             pickle.dump((pTime, rTime, fdl), open(tOut, "wb"))
             print("FAST-Medoids", reduction, pTime, rTime, fdl)
 
         for run in range(repeats):
             pTime, rTime, sel = fastr.fastCS(inputFile, dim=dim, B=B)
+            print(str(sel))
             fdl = metric.fdl(sel, faultMatrix, javaFlag)
-            sOut = "{}/{}-{}-{}.pickle".format(sPath, "FAST-CS", reduction, run+1)
+            sOut = "{}/{}-{}-{}.pickle".format(sPath, "FAST-CS", reduction, run + 1)
             pickle.dump(sel, open(sOut, "wb"))
-            tOut = "{}/{}-{}-{}.pickle".format(tPath, "FAST-CS", reduction, run+1)
+            tOut = "{}/{}-{}-{}.pickle".format(tPath, "FAST-CS", reduction, run + 1)
             pickle.dump((pTime, rTime, fdl), open(tOut, "wb"))
             print("FAST-CS", reduction, pTime, rTime, fdl)
 
-
+        """
         for run in range(repeats):
             pTime, rTime, sel = fastr.fast_pw(inputFile, r, b, bbox=True, k=k, memory=True, B=B)
             fdl = metric.fdl(sel, faultMatrix, javaFlag)
@@ -161,3 +184,4 @@ if __name__ == "__main__":
             tOut = "{}/{}-{}-{}.pickle".format(tPath, "ART-F", reduction, run+1)
             pickle.dump((pTime, rTime, fdl), open(tOut, "wb"))
             print("ART-F", reduction, pTime, rTime, fdl)
+        """
